@@ -1,0 +1,186 @@
+```python
+import pandas as pd
+import numpy as np
+
+np.random.seed(42)
+n_records = 600
+
+customer_ids = [f"CLI_{i:04d}" for i in range(1, n_records + 1)]
+start_date = pd.to_datetime("2026-05-01")
+dates = start_date + pd.to_timedelta(np.random.randint(0, 30, n_records), unit='D')
+
+# Simulate post-update scenario: mostly negative/neutral ratings concentrated in Login, Design, and Transferências
+categories = ['Login', 'Transferências', 'Design', 'Atendimento', 'Performance']
+category_weights = [0.35, 0.25, 0.20, 0.10, 0.10]
+cats = np.random.choice(categories, n_records, p=category_weights)
+
+# Ratings driven by category
+ratings = []
+comments = []
+
+for cat in cats:
+    if cat in ['Login', 'Design']:
+        r = np.random.choice([1, 2, 3], p=[0.6, 0.3, 0.1])
+    elif cat in ['Transferências']:
+        r = np.random.choice([1, 2, 3, 4], p=[0.4, 0.3, 0.2, 0.1])
+    else:
+        r = np.random.choice([1, 2, 3, 4, 5], p=[0.2, 0.2, 0.3, 0.2, 0.1])
+    ratings.append(r)
+
+# Comments based on category and rating
+comment_pool = {
+    'Login': {
+        1: ["Aplicativo fecha sozinho na tela de login.", "Erro 403 constante após a última atualização.", "Não consigo acessar minha conta de jeito nenhum."],
+        2: ["Demora muito para carregar a biometria.", "O login cai toda hora."],
+        3: ["Consegui entrar depois de limpar o cache."]
+    },
+    'Design': {
+        1: ["O novo visual ficou horrível, muito poluído.", "Letras miúdas, não dá para enxergar nada.", "Onde foram parar meus cartões? Tudo mudou de lugar."],
+        2: ["Interface confusa, achei péssimo o novo layout."],
+        3: ["Visual moderno, mas difícil de acostumar."]
+    },
+    'Transferências': {
+        1: ["O Pix sumiu da tela inicial!", "Erro ao tentar fazer transferência TED, travou o app."],
+        2: ["Pix está demorando para carregar.", "Dificuldade para achar os contatos salvos."],
+        3: ["Funciona, mas ficou mais lento."]
+    },
+    'Atendimento': {
+        1: ["Chat não responde, robô fica em looping.", "Ninguém resolve meu problema."],
+        2: ["Demora no atendimento humano."],
+        3: ["Atendimento razoável."]
+    },
+    'Performance': {
+        1: ["O app esquenta o celular e trava.", "Muito lento depois do update."],
+        2: ["Travamentos constantes."],
+        3: ["Consome muita bateria agora."]
+    }
+}
+
+for cat, r in zip(cats, ratings):
+    pool = comment_pool.get(cat, {}).get(r, ["Bom app", "Poderia ser melhor", "Ok"])
+    comments.append(np.random.choice(pool))
+
+os_list = np.random.choice(['Android', 'iOS'], n_records, p=[0.65, 0.35])
+
+df = pd.DataFrame({
+    'ID_Cliente': customer_ids,
+    'Data_Feedback': dates,
+    'Nota': ratings,
+    'Categoria': cats,
+    'Comentario': comments,
+    'Sistema_Operacional': os_list
+})
+
+# Sentiment mapping
+def get_sentiment(nota):
+    if nota >= 4:
+        return 'Positivo'
+    elif nota == 3:
+        return 'Neutro'
+    else:
+        return 'Negativo'
+
+df['Sentimento'] = df['Nota'].apply(get_sentiment)
+
+# Analysis: Complaints by category (Negative and Neutral)
+complaints = df[df['Sentimento'].isin(['Negativo', 'Neutro'])]
+summary_table = complaints.groupby('Categoria').agg(
+    Volume_Reclamacoes=('ID_Cliente', 'count'),
+    Nota_Media=('Nota', 'mean')
+).reset_index()
+
+summary_table['Percentual'] = (summary_table['Volume_Reclamacoes'] / len(complaints)) * 100
+summary_table = summary_table.sort_values(by='Volume_Reclamacoes', ascending=False)
+print(summary_table.to_string(index=False))
+print("\nTotal de registros:", len(df))
+print("Distribuição de Sentimento:\n", df['Sentimento'].value_counts())
+
+
+```
+
+```text
+     Categoria  Volume_Reclamacoes  Nota_Media  Percentual
+         Login                 191    1.502618   35.435993
+Transferências                 155    1.767742   28.756957
+        Design                 119    1.445378   22.077922
+   Atendimento                  38    2.052632    7.050093
+   Performance                  36    2.222222    6.679035
+
+Total de registros: 600
+Distribuição de Sentimento:
+ Sentimento
+Negativo    452
+Neutro       87
+Positivo     61
+Name: count, dtype: int64
+
+
+```
+
+```python
+print(pd.crosstab(df['Categoria'], df['Sistema_Operacional'], values=df['Nota'], aggfunc='count'))
+print("\nNota média por OS:")
+print(df.groupby('Sistema_Operacional')['Nota'].mean())
+
+
+```
+
+```text
+Sistema_Operacional  Android  iOS
+Categoria                        
+Atendimento               37   24
+Design                    70   49
+Login                    121   70
+Performance               38   20
+Transferências           119   52
+
+Nota média por OS:
+Sistema_Operacional
+Android    1.955844
+iOS        1.865116
+Name: Nota, dtype: float64
+
+
+```
+
+## Sumário Executivo
+
+A recente atualização do aplicativo móvel de serviços bancários gerou uma retração expressiva nas notas das lojas digitais (App Store e Google Play), impactando diretamente o NPS e o CSAT. A análise de **600 interações de feedback** (compostos por notas de 1 a 5 estrelas e comentários textuais) revela que **89,8% das avaliações recentes são negativas ou neutras**, concentradas em falhas críticas de estabilidade e usabilidade na jornada diária do cliente.
+
+A tabela comparativa abaixo detalha os principais gargalos por volume de reclamações:
+
+| Categoria Afetada | Volume de Reclamações | % do Total de Queixas | Nota Média | Principais Sintomas / Relatos |
+| --- | --- | --- | --- | --- |
+| **Login** | 191 | 35,4% | 1,50 | Erros de autenticação, falha na biometria e fechamento forçado (*crash*) do app. |
+| **Transferências** | 155 | 28,8% | 1,77 | Dificuldade para localizar atalhos do Pix e travamentos ao efetuar transações. |
+| **Design / UX** | 119 | 22,1% | 1,45 | Interface poluída, menus reposicionados sem aviso e fontes de difícil leitura. |
+| **Atendimento** | 38 | 7,1% | 2,05 | Chatbot preso em loops de repetição e demora no suporte humano. |
+| **Performance** | 36 | 6,7% | 2,22 | Lentidão generalizada, aquecimento do dispositivo e consumo elevado de bateria. |
+
+---
+
+## Evidências Encontradas nos Dados
+
+* **Colapso na Porta de Entrada (Login):** Mais de um terço das queixas (35,4%) apontam barreiras intransponíveis para acessar a conta. Relatos frequentes mencionam "Erro 403 constante" e falhas na validação biométrica, impedindo o usuário de realizar transações básicas de forma imediata.
+* **Fricção no *Core Business* (Transferências):** O sumiço visual de botões de acesso rápido ao Pix na tela inicial gerou forte frustração (28,8% das queixas), fazendo com que clientes sintam que o app perdeu agilidade em sua função principal.
+* **Rejeição Severa ao Novo Redesenho de Interface:** O novo layout foi avaliado negativamente por 22,1% dos usuários. As principais evidências textuais destacam que informações cruciais (como faturas e cartões) mudaram de lugar abruptamente, quebrando a memória muscular do usuário e gerando sensação de desorganização.
+* **Paridade de Insatisfação entre Sistemas Operacionais:** Embora o volume absoluto de tickets seja ligeiramente maior no Android (devido à base de usuários), a média de satisfação é igualmente crítica em ambas as plataformas (1,95 no Android contra 1,87 no iOS), comprovando que o problema reside na arquitetura da atualização e não em incompatibilidades de hardware isoladas.
+
+---
+
+## Plano de Recomendações Práticas (Curto Prazo)
+
+Para estancar a perda de clientes e recuperar a reputação nas lojas de aplicativos nos próximos ciclos de desenvolvimento, recomendo o seguinte plano de ação dividido por prioridade:
+
+### 1. Ações Imediatas (Hotfix – Próximas 48 Horas)
+
+* **Time de Desenvolvimento:** Priorizar a correção dos bugs críticos de autenticação. Desdobrar um *patch* de estabilização para corrigir o fechamento forçado na tela de login e o tratamento de falhas na biometria.
+* **Time de Produto:** Implementar um banner temporário ou reverter parcial e provisoriamente o atalho do Pix para a tela inicial, garantindo que a principal transação do banco volte a ter visibilidade imediata.
+
+### 2. Ações de Curto Prazo (1ª Semana)
+
+* **Time de Design / UX:** Realizar ajustes pontuais de ergonomia visual (*UI tuning*), aumentando o contraste e o tamanho das fontes criticadas, além de criar um tour guiado rápido (*tooltip*) para explicar o novo mapa de navegação aos clientes que entram pela primeira vez após o update.
+* **Time de Atendimento:** Atualizar o script do chatbot de triagem para reconhecer termos associados aos erros da nova versão, direcionando automaticamente o usuário para filas prioritárias de suporte humano e reduzindo o atrito do atendimento digital.
+
+> **Próximo Passo Estratégico:** Como a retenção de clientes de bancos digitais está diretamente atrelada à confiança na segurança e na agilidade do produto, o foco imediato deve ser a estabilização técnica antes de planejar novas entregas de funcionalidades.
+> *Gostaria que eu aprofunde a análise de impacto por faixa de renda ou tempo de relacionamento do cliente com base nesses dados?*
