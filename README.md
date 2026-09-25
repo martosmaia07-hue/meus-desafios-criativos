@@ -1,8 +1,4 @@
-# meus-desafios-criativos
-Olá! Como especialista em n8n, preparei uma arquitetura de workflow robusta, limpa e eficiente para atender à sua equipe comercial.
-
-Abaixo, detalho os nós necessários, o fluxo lógico da automação e como lidar com a regra de validação de e-mail.
-
+#N8N
 ---
 
 ## 🛠️ Ferramentas e Nós do n8n Utilizados
